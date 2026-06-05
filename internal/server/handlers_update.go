@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -74,6 +75,19 @@ func (a *App) selfUpdateState() map[string]any {
 		item["release_notes"] = notes
 		if last.Valid {
 			item["last_check_time"] = last.Time
+		}
+		if downloadURL != "" {
+			item["effective_download_url"] = a.rewriteDownloadURL(downloadURL)
+			if fileExists(filepath.Join(a.DataDir, "data", "updates", filepath.Base(downloadURL))) {
+				item["can_install"] = true
+			}
+		}
+		if latest != "" && !versionDifferent(a.Version, latest) && oneOf(status, "installing", "downloaded", "checked") {
+			item["current_version"] = a.Version
+			item["has_update"] = false
+			item["status"] = "completed"
+			item["progress"] = 100
+			item["can_install"] = false
 		}
 	}
 	return item
@@ -194,6 +208,7 @@ func (a *App) handleUpdateDownload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	dest := filepath.Join(a.DataDir, "data", "updates", filepath.Base(rawURL))
+	effectiveURL := a.rewriteDownloadURL(rawURL)
 	last := DownloadEvent{Status: "running", Progress: 5, Message: "starting"}
 	err := a.downloadFile(rawURL, dest, func(ev DownloadEvent) {
 		last = ev
@@ -205,11 +220,117 @@ func (a *App) handleUpdateDownload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_, _ = a.DB.Exec(`update update_info set status='downloaded',progress=100,error_message='',download_url=?,updated_at=? where component='msm-free'`, rawURL, nowString())
-	writeJSON(w, http.StatusOK, map[string]any{"success": true, "data": map[string]any{"path": dest, "event": last}})
+	writeJSON(w, http.StatusOK, map[string]any{"success": true, "data": map[string]any{"path": dest, "download_url": rawURL, "effective_download_url": effectiveURL, "event": last}})
 }
 
 func (a *App) handleUpdateInstall(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]any{"success": true, "message": "更新包已下载后可由安装脚本或 Unraid 插件覆盖当前二进制；运行中的进程不做热替换。", "data": a.selfUpdateState()})
+	if os.Geteuid() != 0 {
+		writeJSON(w, http.StatusOK, map[string]any{"success": false, "error": "需要 root 权限才能安装并重启 msm-free", "data": a.selfUpdateState()})
+		return
+	}
+	if serverIsUnraidRuntime() {
+		writeJSON(w, http.StatusOK, map[string]any{"success": false, "error": "Unraid 环境请通过插件管理页面更新 msm-free", "data": a.selfUpdateState()})
+		return
+	}
+	state := a.selfUpdateState()
+	rawURL := strings.TrimSpace(fmt.Sprint(state["download_url"]))
+	if rawURL == "" {
+		writeJSON(w, http.StatusOK, map[string]any{"success": false, "error": "请先检查并下载更新包", "data": state})
+		return
+	}
+	archivePath := filepath.Join(a.DataDir, "data", "updates", filepath.Base(rawURL))
+	if _, err := os.Stat(archivePath); err != nil {
+		writeJSON(w, http.StatusOK, map[string]any{"success": false, "error": "更新包不存在，请先下载更新", "data": state})
+		return
+	}
+	_, _ = a.DB.Exec(`update update_info set status='installing',progress=95,error_message='',updated_at=? where component='msm-free'`, nowString())
+	if err := a.startSelfUpdateInstaller(archivePath); err != nil {
+		_, _ = a.DB.Exec(`update update_info set status='failed',progress=95,error_message=?,updated_at=? where component='msm-free'`, err.Error(), nowString())
+		writeJSON(w, http.StatusOK, map[string]any{"success": false, "error": err.Error(), "data": a.selfUpdateState()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"success": true, "message": "更新安装已开始，服务将自动重启。", "data": a.selfUpdateState()})
+}
+
+func (a *App) startSelfUpdateInstaller(archivePath string) error {
+	workDir := filepath.Join(a.DataDir, "data", "updates", "install-"+time.Now().Format("20060102150405"))
+	if err := os.MkdirAll(workDir, 0755); err != nil {
+		return err
+	}
+	if err := untarGz(archivePath, workDir); err != nil {
+		return err
+	}
+	installScript := filepath.Join(workDir, "install.sh")
+	if _, err := os.Stat(installScript); err != nil {
+		return fmt.Errorf("update archive missing install.sh")
+	}
+	if err := os.Chmod(installScript, 0755); err != nil {
+		return err
+	}
+	args := []string{
+		"--prefix", selfUpdateInstallPrefix(),
+		"--data-dir", a.DataDir,
+		"--service-name", "msm-free",
+		"--port", strconv.Itoa(a.selfUpdateWebPort()),
+	}
+	if serverSystemdAvailable() {
+		unit := "msm-free-self-update-" + time.Now().Format("20060102150405")
+		runArgs := append([]string{"--unit", unit, "--collect", "--property=Type=oneshot", "/bin/sh", installScript}, args...)
+		out, err := exec.Command("systemd-run", runArgs...).CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("start update installer: %w: %s", err, strings.TrimSpace(string(out)))
+		}
+		return nil
+	}
+	go func() {
+		cmdArgs := append([]string{installScript}, args...)
+		cmd := exec.Command("sh", cmdArgs...)
+		cmd.Dir = workDir
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			_, _ = a.DB.Exec(`update update_info set status='failed',progress=95,error_message=?,updated_at=? where component='msm-free'`, fmt.Sprintf("%v: %s", err, strings.TrimSpace(string(out))), nowString())
+			return
+		}
+		_, _ = a.DB.Exec(`update update_info set current_version=?,has_update=false,status='completed',progress=100,error_message='',updated_at=? where component='msm-free'`, a.Version, nowString())
+	}()
+	return nil
+}
+
+func selfUpdateInstallPrefix() string {
+	exe, err := os.Executable()
+	if err != nil {
+		return "/usr/local"
+	}
+	dir := filepath.Dir(exe)
+	if filepath.Base(dir) == "bin" {
+		return filepath.Dir(dir)
+	}
+	return "/usr/local"
+}
+
+func (a *App) selfUpdateWebPort() int {
+	var port int
+	if err := a.DB.QueryRow(`select web_port from system_setups order by id desc limit 1`).Scan(&port); err != nil || port <= 0 {
+		return 7777
+	}
+	return port
+}
+
+func serverSystemdAvailable() bool {
+	if _, err := exec.LookPath("systemd-run"); err != nil {
+		return false
+	}
+	if st, err := os.Stat("/run/systemd/system"); err == nil && st.IsDir() {
+		return true
+	}
+	return false
+}
+
+func serverIsUnraidRuntime() bool {
+	if fileExists("/etc/unraid-version") || fileExists("/usr/local/sbin/emhttp") || fileExists("/boot/config/plugins") {
+		return true
+	}
+	return strings.Contains(strings.ToLower(os.Getenv("UNRAID_VERSION")), "unraid")
 }
 
 func (a *App) handleUpdateCancel(w http.ResponseWriter, r *http.Request) {

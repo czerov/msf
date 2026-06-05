@@ -548,9 +548,25 @@ func updateRuntime(opts updateOptions) error {
 	}
 	defer os.RemoveAll(tmp)
 	archivePath := filepath.Join(tmp, archiveName)
-	fmt.Printf("downloading %s\n", opts.URL)
-	if err := downloadFile(opts.URL, archivePath); err != nil {
-		return err
+	downloadApp, appErr := server.New(server.Options{DataDir: opts.DataDir, Version: version})
+	if appErr == nil {
+		defer downloadApp.Close()
+		effectiveURL := downloadApp.EffectiveDownloadURL(opts.URL)
+		if effectiveURL != opts.URL {
+			fmt.Printf("downloading %s\n", effectiveURL)
+			fmt.Printf("source URL: %s\n", opts.URL)
+		} else {
+			fmt.Printf("downloading %s\n", opts.URL)
+		}
+		if err := downloadApp.DownloadFile(opts.URL, archivePath, nil); err != nil {
+			return err
+		}
+	} else {
+		fmt.Printf("downloading %s\n", opts.URL)
+		fmt.Printf("warning: failed to load msm-free download settings, using direct download: %v\n", appErr)
+		if err := downloadFile(opts.URL, archivePath); err != nil {
+			return err
+		}
 	}
 	if err := extractTarGZ(archivePath, tmp); err != nil {
 		return err

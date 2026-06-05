@@ -68,10 +68,12 @@ interface UpdateStatus {
   current_version?: string;
   latest_version?: string;
   has_update?: boolean;
+  can_install?: boolean;
   status?: string;
   progress?: number;
   error_message?: string;
   download_url?: string;
+  effective_download_url?: string;
   release_notes?: string;
   last_check_time?: string;
 }
@@ -213,6 +215,8 @@ function statusLabel(status?: string) {
       return "下载中";
     case "downloaded":
       return "已下载";
+    case "installing":
+      return "安装中";
     case "failed":
       return "失败";
     case "running":
@@ -1335,6 +1339,8 @@ function UpdateTab({ showToast }: { showToast: (message: string) => void }) {
   const currentVersion = updateStatus.current_version || versionInfo.version || "-";
   const latestVersion = latestRelease ? releaseTitle(latestRelease) : updateStatus.latest_version || "-";
   const hasUpdate = Boolean(updateStatus.has_update);
+  const canInstallUpdate = Boolean(updateStatus.can_install || updateStatus.status === "downloaded");
+  const installingUpdate = updateStatus.status === "installing";
   const selectedRelease = useMemo(
     () =>
       releases.find((release, index) => {
@@ -1492,6 +1498,22 @@ function UpdateTab({ showToast }: { showToast: (message: string) => void }) {
     }
   };
 
+  const installUpdate = async () => {
+    if (!window.confirm("安装更新会重启 msm-free 服务，当前 WebUI 会短暂断开。是否继续？")) return;
+    try {
+      const payload = await api<any>("/api/v1/update/install", { method: "POST" });
+      if (payload.success === false) {
+        showToast(`安装更新失败: ${payload.error || "未知错误"}`);
+        void loadUpdateData();
+        return;
+      }
+      showToast(payload.message || "更新安装已开始，服务将自动重启");
+      void loadUpdateData();
+    } catch (err) {
+      showToast(`安装更新失败: ${errorMessage(err)}`);
+    }
+  };
+
   const componentItem = (component: string) =>
     componentUpdates.find((item) => item.component === component);
 
@@ -1601,7 +1623,16 @@ function UpdateTab({ showToast }: { showToast: (message: string) => void }) {
                 <Download className="h-3.5 w-3.5" />
                 下载更新
               </PrimaryButton>
+              <PrimaryButton onClick={installUpdate} disabled={checking || installingUpdate || !canInstallUpdate} className="h-8 px-3 text-xs">
+                <RefreshCw className={cn("h-3.5 w-3.5", installingUpdate && "animate-spin")} />
+                安装并重启
+              </PrimaryButton>
             </div>
+            {updateStatus.effective_download_url && updateStatus.effective_download_url !== updateStatus.download_url ? (
+              <div className="rounded-lg border border-border/50 bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+                下载走加速: <span className="break-all font-mono text-foreground/80">{updateStatus.effective_download_url}</span>
+              </div>
+            ) : null}
             <div className="border-t border-border/40 pt-3 text-xs text-muted-foreground">
               最后检查: {formatDateTime(updateStatus.last_check_time)}
             </div>

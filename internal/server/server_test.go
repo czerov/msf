@@ -514,6 +514,38 @@ func TestUpdateConfigPersistsGlobalAndComponentSettings(t *testing.T) {
 	}
 }
 
+func TestSelfUpdateStateExposesInstallAndAcceleratedDownloadURL(t *testing.T) {
+	app := newTestApp(t)
+	token := tokenForRole(t, app, "admin")
+	now := time.Now()
+	if _, err := app.DB.Exec(`insert into system_setups(created_at,updated_at,username,web_port,github_accelerator_enabled,github_accelerator_url,is_initialized)
+		values(?,?,?,?,?,?,?)`, now, now, "root", "7777", true, "https://gh-proxy.example", true); err != nil {
+		t.Fatal(err)
+	}
+	rawURL := "https://github.com/scoltzero/msm-free/releases/download/v9.9.9/msm-free-linux-amd64.tar.gz"
+	updateDir := filepath.Join(app.DataDir, "data", "updates")
+	if err := os.MkdirAll(updateDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(updateDir, filepath.Base(rawURL)), []byte("archive"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := app.DB.Exec(`insert into update_info(component,current_version,latest_version,has_update,status,progress,error_message,download_url,release_notes,last_check_time,created_at,updated_at)
+		values('msm-free',?,?,?,?,?,?,?,?,?,?,?)`, app.Version, "v9.9.9", true, "downloaded", 100, "", rawURL, "", now, now, now); err != nil {
+		t.Fatal(err)
+	}
+	status := requestJSON(t, app, http.MethodGet, "/api/v1/update/status", token, nil)
+	for _, want := range []string{
+		`"status":"downloaded"`,
+		`"can_install":true`,
+		`"effective_download_url":"https://gh-proxy.example/https://github.com/scoltzero/msm-free/releases/download/v9.9.9/msm-free-linux-amd64.tar.gz"`,
+	} {
+		if !strings.Contains(status.Body.String(), want) {
+			t.Fatalf("self update status missing %q: status=%d body=%s", want, status.Code, status.Body.String())
+		}
+	}
+}
+
 func TestComponentUpdateUploadInstallsZashboardZip(t *testing.T) {
 	app := newTestApp(t)
 	token := tokenForRole(t, app, "admin")

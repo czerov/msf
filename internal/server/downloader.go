@@ -208,6 +208,10 @@ func (a *App) downloadFile(rawURL, dest string, emit func(DownloadEvent)) error 
 	return nil
 }
 
+func (a *App) DownloadFile(rawURL, dest string, emit func(DownloadEvent)) error {
+	return a.downloadFile(rawURL, dest, emit)
+}
+
 func downloadFile(rawURL, dest string) error {
 	app := &App{}
 	return app.downloadFile(rawURL, dest, nil)
@@ -262,6 +266,10 @@ func (a *App) rewriteDownloadURL(raw string) string {
 		return raw
 	}
 	return prefix + "/" + raw
+}
+
+func (a *App) EffectiveDownloadURL(raw string) string {
+	return a.rewriteDownloadURL(raw)
 }
 
 func untarGz(src, dest string) error {

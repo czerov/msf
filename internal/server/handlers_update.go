@@ -53,14 +53,14 @@ func (a *App) handleUpdateStatus(w http.ResponseWriter, r *http.Request) {
 
 func (a *App) selfUpdateState() map[string]any {
 	item := map[string]any{
-		"component":       "msm-free",
+		"component":       "msf",
 		"current_version": a.Version,
 		"latest_version":  a.Version,
 		"has_update":      false,
 		"status":          "idle",
 		"progress":        0,
 	}
-	row := a.DB.QueryRow(`select current_version,latest_version,has_update,status,progress,coalesce(error_message,''),coalesce(download_url,''),coalesce(release_notes,''),last_check_time from update_info where component='msm-free' order by id desc limit 1`)
+	row := a.DB.QueryRow(`select current_version,latest_version,has_update,status,progress,coalesce(error_message,''),coalesce(download_url,''),coalesce(release_notes,''),last_check_time from update_info where component='msf' order by id desc limit 1`)
 	var current, latest, status, errText, downloadURL, notes string
 	var hasUpdate bool
 	var progress int
@@ -95,7 +95,7 @@ func (a *App) selfUpdateState() map[string]any {
 }
 
 func (a *App) handleUpdateCheck(w http.ResponseWriter, r *http.Request) {
-	release, err := a.fetchLatestRelease("scoltzero", "msm-free")
+	release, err := a.fetchLatestRelease("scoltzero", "msf")
 	if err != nil {
 		writeJSON(w, http.StatusOK, map[string]any{"success": false, "error": err.Error(), "data": a.selfUpdateState()})
 		return
@@ -104,13 +104,13 @@ func (a *App) handleUpdateCheck(w http.ResponseWriter, r *http.Request) {
 	hasUpdate := versionDifferent(a.Version, release.TagName)
 	now := time.Now()
 	_, _ = a.DB.Exec(`insert into update_info(component,current_version,latest_version,has_update,status,progress,error_message,download_url,release_notes,last_check_time,created_at,updated_at)
-		values('msm-free',?,?,?,?,?,?,?,?,?,?,?)
+		values('msf',?,?,?,?,?,?,?,?,?,?,?)
 		on conflict(id) do nothing`,
 		a.Version, release.TagName, hasUpdate, "checked", 0, "", downloadURL, release.Body, now, now, now)
-	_, _ = a.DB.Exec(`update update_info set current_version=?,latest_version=?,has_update=?,status='checked',progress=0,error_message='',download_url=?,release_notes=?,last_check_time=?,updated_at=? where component='msm-free'`,
+	_, _ = a.DB.Exec(`update update_info set current_version=?,latest_version=?,has_update=?,status='checked',progress=0,error_message='',download_url=?,release_notes=?,last_check_time=?,updated_at=? where component='msf'`,
 		a.Version, release.TagName, hasUpdate, downloadURL, release.Body, now, now)
 	writeJSON(w, http.StatusOK, map[string]any{"success": true, "data": map[string]any{
-		"component":       "msm-free",
+		"component":       "msf",
 		"current_version": a.Version,
 		"latest_version":  release.TagName,
 		"has_update":      hasUpdate,
@@ -185,7 +185,7 @@ func (a *App) handleUpdateConfigPut(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleUpdateReleases(w http.ResponseWriter, r *http.Request) {
-	releases, err := a.fetchReleases("scoltzero", "msm-free")
+	releases, err := a.fetchReleases("scoltzero", "msf")
 	if err != nil {
 		writeJSON(w, http.StatusOK, map[string]any{"success": false, "error": err.Error(), "data": []any{}})
 		return
@@ -197,7 +197,7 @@ func (a *App) handleUpdateDownload(w http.ResponseWriter, r *http.Request) {
 	state := a.selfUpdateState()
 	rawURL := strings.TrimSpace(fmt.Sprint(state["download_url"]))
 	if rawURL == "" {
-		release, err := a.fetchLatestRelease("scoltzero", "msm-free")
+		release, err := a.fetchLatestRelease("scoltzero", "msf")
 		if err != nil {
 			writeJSON(w, http.StatusOK, map[string]any{"success": false, "error": err.Error(), "data": state})
 			return
@@ -213,24 +213,24 @@ func (a *App) handleUpdateDownload(w http.ResponseWriter, r *http.Request) {
 	last := DownloadEvent{Status: "running", Progress: 5, Message: "starting"}
 	err := a.downloadFile(rawURL, dest, func(ev DownloadEvent) {
 		last = ev
-		_, _ = a.DB.Exec(`update update_info set status='downloading',progress=?,error_message='',updated_at=? where component='msm-free'`, ev.Progress, nowString())
+		_, _ = a.DB.Exec(`update update_info set status='downloading',progress=?,error_message='',updated_at=? where component='msf'`, ev.Progress, nowString())
 	})
 	if err != nil {
-		_, _ = a.DB.Exec(`update update_info set status='failed',progress=?,error_message=?,updated_at=? where component='msm-free'`, last.Progress, err.Error(), nowString())
+		_, _ = a.DB.Exec(`update update_info set status='failed',progress=?,error_message=?,updated_at=? where component='msf'`, last.Progress, err.Error(), nowString())
 		writeJSON(w, http.StatusOK, map[string]any{"success": false, "error": err.Error(), "data": a.selfUpdateState()})
 		return
 	}
-	_, _ = a.DB.Exec(`update update_info set status='downloaded',progress=100,error_message='',download_url=?,updated_at=? where component='msm-free'`, rawURL, nowString())
+	_, _ = a.DB.Exec(`update update_info set status='downloaded',progress=100,error_message='',download_url=?,updated_at=? where component='msf'`, rawURL, nowString())
 	writeJSON(w, http.StatusOK, map[string]any{"success": true, "data": map[string]any{"path": dest, "download_url": rawURL, "effective_download_url": effectiveURL, "event": last}})
 }
 
 func (a *App) handleUpdateInstall(w http.ResponseWriter, r *http.Request) {
 	if os.Geteuid() != 0 {
-		writeJSON(w, http.StatusOK, map[string]any{"success": false, "error": "需要 root 权限才能安装并重启 msm-free", "data": a.selfUpdateState()})
+		writeJSON(w, http.StatusOK, map[string]any{"success": false, "error": "需要 root 权限才能安装并重启 msf", "data": a.selfUpdateState()})
 		return
 	}
 	if serverIsUnraidRuntime() {
-		writeJSON(w, http.StatusOK, map[string]any{"success": false, "error": "Unraid 环境请通过插件管理页面更新 msm-free", "data": a.selfUpdateState()})
+		writeJSON(w, http.StatusOK, map[string]any{"success": false, "error": "Unraid 环境请通过插件管理页面更新 msf", "data": a.selfUpdateState()})
 		return
 	}
 	state := a.selfUpdateState()
@@ -244,9 +244,9 @@ func (a *App) handleUpdateInstall(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{"success": false, "error": "更新包不存在，请先下载更新", "data": state})
 		return
 	}
-	_, _ = a.DB.Exec(`update update_info set status='installing',progress=95,error_message='',updated_at=? where component='msm-free'`, nowString())
+	_, _ = a.DB.Exec(`update update_info set status='installing',progress=95,error_message='',updated_at=? where component='msf'`, nowString())
 	if err := a.startSelfUpdateInstaller(archivePath); err != nil {
-		_, _ = a.DB.Exec(`update update_info set status='failed',progress=95,error_message=?,updated_at=? where component='msm-free'`, err.Error(), nowString())
+		_, _ = a.DB.Exec(`update update_info set status='failed',progress=95,error_message=?,updated_at=? where component='msf'`, err.Error(), nowString())
 		writeJSON(w, http.StatusOK, map[string]any{"success": false, "error": err.Error(), "data": a.selfUpdateState()})
 		return
 	}
@@ -271,11 +271,11 @@ func (a *App) startSelfUpdateInstaller(archivePath string) error {
 	args := []string{
 		"--prefix", selfUpdateInstallPrefix(),
 		"--data-dir", a.DataDir,
-		"--service-name", "msm-free",
+		"--service-name", "msf",
 		"--port", strconv.Itoa(a.selfUpdateWebPort()),
 	}
 	if serverSystemdAvailable() {
-		unit := "msm-free-self-update-" + time.Now().Format("20060102150405")
+		unit := "msf-self-update-" + time.Now().Format("20060102150405")
 		runArgs := append([]string{"--unit", unit, "--collect", "--property=Type=oneshot", "/bin/sh", installScript}, args...)
 		out, err := exec.Command("systemd-run", runArgs...).CombinedOutput()
 		if err != nil {
@@ -289,10 +289,10 @@ func (a *App) startSelfUpdateInstaller(archivePath string) error {
 		cmd.Dir = workDir
 		out, err := cmd.CombinedOutput()
 		if err != nil {
-			_, _ = a.DB.Exec(`update update_info set status='failed',progress=95,error_message=?,updated_at=? where component='msm-free'`, fmt.Sprintf("%v: %s", err, strings.TrimSpace(string(out))), nowString())
+			_, _ = a.DB.Exec(`update update_info set status='failed',progress=95,error_message=?,updated_at=? where component='msf'`, fmt.Sprintf("%v: %s", err, strings.TrimSpace(string(out))), nowString())
 			return
 		}
-		_, _ = a.DB.Exec(`update update_info set current_version=?,has_update=false,status='completed',progress=100,error_message='',updated_at=? where component='msm-free'`, a.Version, nowString())
+		_, _ = a.DB.Exec(`update update_info set current_version=?,has_update=false,status='completed',progress=100,error_message='',updated_at=? where component='msf'`, a.Version, nowString())
 	}()
 	return nil
 }
@@ -335,7 +335,7 @@ func serverIsUnraidRuntime() bool {
 }
 
 func (a *App) handleUpdateCancel(w http.ResponseWriter, r *http.Request) {
-	_, _ = a.DB.Exec(`update update_info set status='idle',progress=0,updated_at=? where component='msm-free'`, nowString())
+	_, _ = a.DB.Exec(`update update_info set status='idle',progress=0,updated_at=? where component='msf'`, nowString())
 	writeJSON(w, http.StatusOK, map[string]any{"success": true, "data": a.selfUpdateState()})
 }
 
@@ -997,7 +997,7 @@ func (a *App) fetchGitHubJSON(rawURL string, dst any) error {
 		return err
 	}
 	req.Header.Set("Accept", "application/vnd.github+json")
-	req.Header.Set("User-Agent", "msm-free/"+a.Version)
+	req.Header.Set("User-Agent", "msf/"+a.Version)
 	resp, err := a.downloadHTTPClient().Do(req)
 	if err != nil {
 		return err

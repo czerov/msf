@@ -150,7 +150,7 @@ func (a *App) migrate() error {
 		)`,
 		`create table if not exists update_info (
 			id integer primary key autoincrement,
-			component text default 'msm-free',
+			component text default 'msf',
 			current_version text,
 			latest_version text,
 			has_update numeric default false,

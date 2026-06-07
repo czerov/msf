@@ -49,8 +49,8 @@ func run(args []string) error {
 	port := fs.Int("p", 7777, "HTTP listen port")
 	fs.IntVar(port, "port", 7777, "HTTP listen port")
 	prefix := fs.String("prefix", "/usr/local", "install prefix for uninstall")
-	serviceName := fs.String("service-name", "msm-free", "systemd service name")
-	aliasName := fs.String("alias-name", "msm", "compatibility CLI alias name")
+	serviceName := fs.String("service-name", "msf", "systemd service name")
+	aliasName := fs.String("alias-name", "", "optional extra CLI alias to register under PATH/bin (empty = none)")
 	purge := fs.Bool("purge", false, "remove data directory during uninstall")
 	wait := fs.Bool("wait", true, "wait for stop to complete")
 	force := fs.Bool("force", false, "force kill process if graceful stop times out")
@@ -66,7 +66,7 @@ func run(args []string) error {
 	_ = fs.Parse(args)
 
 	if *versionFlag || command == "version" {
-		fmt.Printf("msm-free %s\n", version)
+		fmt.Printf("msf %s\n", version)
 		return nil
 	}
 	if command == "help" || *helpAll {
@@ -109,7 +109,7 @@ func run(args []string) error {
 	case "restart":
 		return restartRuntime(*configDir, *host, *port, *serviceName, *timeout, *force)
 	case "logs":
-		service := "msm"
+		service := "msf"
 		if fs.NArg() > 0 {
 			service = fs.Arg(0)
 		}
@@ -146,23 +146,22 @@ func run(args []string) error {
 
 func printUsage() {
 	fmt.Print(`Usage:
-  msm serve [--config /opt/msm-free] [--host 0.0.0.0] [--port 7777]
-  msm init [--config /opt/msm-free]
-  msm status [--config /opt/msm-free]
-  msm restart [--config /opt/msm-free]
-  msm stop [--config /opt/msm-free] [--timeout 15s] [--force]
-  msm logs [--lines 100] [msm|mosdns|mihomo]
-  msm doctor [--config /opt/msm-free]
-  msm update [--repo scoltzero/msm-free] [--url https://.../msm-free-linux-amd64.tar.gz]
-  msm uninstall [--config /opt/msm-free] [--prefix /usr/local] [--service-name msm-free] [--purge]
-  msm reset-password [--config /opt/msm-free] [password]
-  msm service install|uninstall [--config /opt/msm-free]
-  msm license status|fingerprint
-  msm version
+  msf serve [--config /opt/msf] [--host 0.0.0.0] [--port 7777]
+  msf init [--config /opt/msf]
+  msf status [--config /opt/msf]
+  msf restart [--config /opt/msf]
+  msf stop [--config /opt/msf] [--timeout 15s] [--force]
+  msf logs [--lines 100] [msf|mosdns|mihomo]
+  msf doctor [--config /opt/msf]
+  msf update [--repo scoltzero/msf] [--url https://.../msf-linux-amd64.tar.gz]
+  msf uninstall [--config /opt/msf] [--prefix /usr/local] [--service-name msf] [--purge]
+  msf reset-password [--config /opt/msf] [password]
+  msf service install|uninstall [--config /opt/msf]
+  msf license status|fingerprint
+  msf version
 
 Notes:
-  msm-free and msm are the same CLI when the installer registers the msm alias.
-  stop sends SIGTERM to the running msm-free process and waits for MosDNS/Mihomo child services to exit.
+  stop sends SIGTERM to the running msf process and waits for MosDNS/Mihomo child services to exit.
   uninstall removes the systemd unit and binary. It keeps the data directory unless --purge is provided.
 `)
 }
@@ -173,7 +172,7 @@ func serve(dataDir, host string, port int) error {
 		return err
 	}
 	defer app.Close()
-	app.LogInfo("app/app.go:114", "MSM 后端服务启动中...", nil)
+	app.LogInfo("app/app.go:114", "MSF 后端服务启动中...", nil)
 	app.LogInfo("app/app.go:115", "使用配置目录", map[string]any{"path": dataDir})
 
 	if err := app.EnsureBaseLayout(); err != nil {
@@ -187,15 +186,13 @@ func serve(dataDir, host string, port int) error {
 	app.LogInfo("app/app.go:209", "Supervisor 初始化成功", nil)
 	app.LogInfo("app/app.go:217", "服务管理器初始化成功", nil)
 	app.LogInfo("app/app.go:221", "系统监控器初始化成功", nil)
-	app.LogInfo("app/app.go:235", "许可证未启用", map[string]any{"reason": "msm-free unlocked"})
+	app.LogInfo("app/app.go:235", "许可证未启用", map[string]any{"reason": "msf unlocked"})
 	app.LogInfo("app/app.go:241", "Setup 服务初始化成功", nil)
 	app.LogInfo("app/app.go:246", "更新服务初始化成功", nil)
-	if err := os.WriteFile(filepath.Join(dataDir, "msm-free.pid"), []byte(fmt.Sprint(os.Getpid())), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dataDir, "msf.pid"), []byte(fmt.Sprint(os.Getpid())), 0644); err != nil {
 		return err
 	}
-	_ = os.WriteFile(filepath.Join(dataDir, "msm.pid"), []byte(fmt.Sprint(os.Getpid())), 0644)
-	defer os.Remove(filepath.Join(dataDir, "msm-free.pid"))
-	defer os.Remove(filepath.Join(dataDir, "msm.pid"))
+	defer os.Remove(filepath.Join(dataDir, "msf.pid"))
 
 	go func() {
 		restoreCtx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
@@ -227,7 +224,7 @@ func serve(dataDir, host string, port int) error {
 	app.LogInfo("update/scheduler.go:51", "更新调度器已启动", map[string]any{"interval": 86400, "auto_download": false})
 	app.LogInfo("componentupdate/scheduler.go:54", "组件更新调度器已启动", nil)
 	app.LogInfo("app/app.go:372", "HTTP 服务器启动", map[string]any{"addr": fmt.Sprintf("%s:%d", host, port)})
-	log.Printf("msm-free %s listening on http://%s:%d data=%s", version, host, port, dataDir)
+	log.Printf("msf %s listening on http://%s:%d data=%s", version, host, port, dataDir)
 	err = srv.ListenAndServe()
 	if errors.Is(err, http.ErrServerClosed) {
 		return nil
@@ -236,28 +233,24 @@ func serve(dataDir, host string, port int) error {
 }
 
 func defaultDataDir() string {
-	if v := os.Getenv("MSM_FREE_DATA_DIR"); v != "" {
+	if v := os.Getenv("MSF_DATA_DIR"); v != "" {
 		return v
 	}
 	if os.Geteuid() == 0 {
-		return "/opt/msm-free"
+		return "/opt/msf"
 	}
 	return "./data"
 }
 
 func runtimePIDFile(dataDir string) string {
-	msmPID := filepath.Join(dataDir, "msm.pid")
-	if _, err := os.Stat(msmPID); err == nil {
-		return msmPID
-	}
-	return filepath.Join(dataDir, "msm-free.pid")
+	return filepath.Join(dataDir, "msf.pid")
 }
 
 func stopRuntime(dataDir string, wait bool, timeout time.Duration, force bool) error {
 	pidFile := runtimePIDFile(dataDir)
 	b, err := os.ReadFile(pidFile)
 	if err != nil {
-		return errors.New("msm-free is not running")
+		return errors.New("msf is not running")
 	}
 	pid, _ := strconv.Atoi(stringTrim(string(b)))
 	if pid <= 0 {
@@ -275,7 +268,7 @@ func stopRuntime(dataDir string, wait bool, timeout time.Duration, force bool) e
 		return err
 	}
 	if !wait {
-		fmt.Printf("sent stop signal to msm-free pid=%d\n", pid)
+		fmt.Printf("sent stop signal to msf pid=%d\n", pid)
 		return nil
 	}
 	if timeout <= 0 {
@@ -288,17 +281,17 @@ func stopRuntime(dataDir string, wait bool, timeout time.Duration, force bool) e
 				_ = proc.Signal(syscall.SIGKILL)
 				break
 			}
-			return fmt.Errorf("timed out waiting for msm-free pid=%d to stop", pid)
+			return fmt.Errorf("timed out waiting for msf pid=%d to stop", pid)
 		}
 		time.Sleep(200 * time.Millisecond)
 	}
 	removeRuntimePIDFiles(dataDir)
-	fmt.Printf("msm-free stopped pid=%d\n", pid)
+	fmt.Printf("msf stopped pid=%d\n", pid)
 	return nil
 }
 
 func printStatus(dataDir, serviceName string) error {
-	fmt.Printf("msm-free %s\n", version)
+	fmt.Printf("msf %s\n", version)
 	fmt.Printf("data: %s\n", dataDir)
 	pid := runtimePID(dataDir)
 	running := pid > 0 && processAlive(pid)
@@ -324,7 +317,7 @@ func printStatus(dataDir, serviceName string) error {
 		}
 	}
 	if !running && !strings.Contains(commandOutput("systemctl", "is-active", serviceName), "active") {
-		return errors.New("msm-free is not running")
+		return errors.New("msf is not running")
 	}
 	return nil
 }
@@ -352,7 +345,7 @@ func startDetached(dataDir, host string, port int) error {
 	if err := os.MkdirAll(filepath.Join(dataDir, "logs"), 0755); err != nil {
 		return err
 	}
-	logPath := filepath.Join(dataDir, "logs", "msm-free.cli.log")
+	logPath := filepath.Join(dataDir, "logs", "msf.cli.log")
 	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
 		return err
@@ -368,7 +361,7 @@ func startDetached(dataDir, host string, port int) error {
 		_ = logFile.Close()
 		return err
 	}
-	fmt.Printf("started msm-free in background, log=%s\n", logPath)
+	fmt.Printf("started msf in background, log=%s\n", logPath)
 	return nil
 }
 
@@ -377,7 +370,7 @@ func printLogs(dataDir, serviceName, service string, lines int) error {
 		lines = 100
 	}
 	service = normalizeCLIService(service)
-	if service == "msm" && commandExists("journalctl") && systemdUnitExists(serviceName) {
+	if service == "msf" && commandExists("journalctl") && systemdUnitExists(serviceName) {
 		cmd := exec.Command("journalctl", "-u", serviceName, "-n", strconv.Itoa(lines), "--no-pager")
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
@@ -402,7 +395,7 @@ func printLogs(dataDir, serviceName, service string, lines int) error {
 }
 
 func runDoctor(dataDir, serviceName string) error {
-	fmt.Printf("msm-free doctor\n")
+	fmt.Printf("msf doctor\n")
 	fmt.Printf("version: %s\n", version)
 	fmt.Printf("data: %s\n", dataDir)
 	fmt.Printf("root: %t\n", os.Geteuid() == 0)
@@ -464,7 +457,7 @@ func uninstallRuntime(opts uninstallOptions) error {
 		return errors.New("uninstall must be run as root")
 	}
 	if isUnraidRuntime() {
-		return errors.New("on Unraid, remove msm-free from the WebGUI plugin page; application data is kept under /mnt/user/appdata/msm-free")
+		return errors.New("on Unraid, remove msf from the WebGUI plugin page; application data is kept under /mnt/user/appdata/msf")
 	}
 	if opts.Prefix == "" {
 		opts.Prefix = "/usr/local"
@@ -473,10 +466,7 @@ func uninstallRuntime(opts uninstallOptions) error {
 		opts.DataDir = defaultDataDir()
 	}
 	if opts.ServiceName == "" {
-		opts.ServiceName = "msm-free"
-	}
-	if opts.AliasName == "" {
-		opts.AliasName = "msm"
+		opts.ServiceName = "msf"
 	}
 	if opts.Timeout <= 0 {
 		opts.Timeout = 15 * time.Second
@@ -495,20 +485,22 @@ func uninstallRuntime(opts uninstallOptions) error {
 		_ = stopRuntime(opts.DataDir, true, opts.Timeout, true)
 	}
 
-	binDest := filepath.Join(opts.Prefix, "bin", "msm-free")
+	binDest := filepath.Join(opts.Prefix, "bin", "msf")
 	if err := os.Remove(binDest); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
-	removeAliasIfOwned(filepath.Join(opts.Prefix, "bin", opts.AliasName), binDest)
+	if opts.AliasName != "" && opts.AliasName != "msf" {
+		removeAliasIfOwned(filepath.Join(opts.Prefix, "bin", opts.AliasName), binDest)
+	}
 
 	if opts.Purge {
 		if err := safeRemoveAll(opts.DataDir); err != nil {
 			return err
 		}
-		fmt.Printf("removed msm-free binary, service, and data directory: %s\n", opts.DataDir)
+		fmt.Printf("removed msf binary, service, and data directory: %s\n", opts.DataDir)
 		return nil
 	}
-	fmt.Printf("removed msm-free binary and service\n")
+	fmt.Printf("removed msf binary and service\n")
 	fmt.Printf("kept data directory: %s\n", opts.DataDir)
 	return nil
 }
@@ -526,7 +518,7 @@ func updateRuntime(opts updateOptions) error {
 		return errors.New("update must be run as root")
 	}
 	if isUnraidRuntime() {
-		return errors.New("on Unraid, update msm-free from the WebGUI plugin page instead of the Linux tarball updater")
+		return errors.New("on Unraid, update msf from the WebGUI plugin page instead of the Linux tarball updater")
 	}
 	if opts.Repo == "" {
 		opts.Repo = defaultGitHubRepo()
@@ -542,7 +534,7 @@ func updateRuntime(opts updateOptions) error {
 	if base := filepath.Base(parsedURL.Path); base != "." && base != "/" && base != "" {
 		archiveName = base
 	}
-	tmp, err := os.MkdirTemp("", "msm-free-update-*")
+	tmp, err := os.MkdirTemp("", "msf-update-*")
 	if err != nil {
 		return err
 	}
@@ -563,7 +555,7 @@ func updateRuntime(opts updateOptions) error {
 		}
 	} else {
 		fmt.Printf("downloading %s\n", opts.URL)
-		fmt.Printf("warning: failed to load msm-free download settings, using direct download: %v\n", appErr)
+		fmt.Printf("warning: failed to load msf download settings, using direct download: %v\n", appErr)
 		if err := downloadFile(opts.URL, archivePath); err != nil {
 			return err
 		}
@@ -607,7 +599,7 @@ func serviceCommand(action string, opts serviceOptions) error {
 		cmd.Stderr = os.Stderr
 		return cmd.Run()
 	default:
-		return errors.New("usage: msm service install|uninstall|status")
+		return errors.New("usage: msf service install|uninstall|status")
 	}
 }
 
@@ -616,12 +608,12 @@ func installSystemdService(opts serviceOptions) error {
 		return errors.New("service install must be run as root")
 	}
 	if isUnraidRuntime() {
-		return errors.New("on Unraid, use /etc/rc.d/rc.msm-free and the WebGUI plugin page instead of systemd service install")
+		return errors.New("on Unraid, use /etc/rc.d/rc.msf and the WebGUI plugin page instead of systemd service install")
 	}
 	if opts.ServiceName == "" {
-		opts.ServiceName = "msm-free"
+		opts.ServiceName = "msf"
 	}
-	binDest := filepath.Join(opts.Prefix, "bin", "msm-free")
+	binDest := filepath.Join(opts.Prefix, "bin", "msf")
 	if !fileExists(binDest) {
 		if exe, err := os.Executable(); err == nil {
 			binDest = exe
@@ -632,7 +624,7 @@ func installSystemdService(opts serviceOptions) error {
 	}
 	servicePath := filepath.Join("/etc/systemd/system", opts.ServiceName+".service")
 	body := fmt.Sprintf(`[Unit]
-Description=msm-free service
+Description=msf service
 After=network-online.target
 Wants=network-online.target
 
@@ -640,7 +632,7 @@ Wants=network-online.target
 Type=simple
 User=root
 WorkingDirectory=%s
-Environment=MSM_FREE_DATA_DIR=%s
+Environment=MSF_DATA_DIR=%s
 ExecStart=%s serve --config %s --host %s --port %d
 Restart=on-failure
 RestartSec=2
@@ -670,7 +662,7 @@ func selfUpdateArchiveName(goos, goarch string) string {
 	if goarch == "" {
 		goarch = "amd64"
 	}
-	return fmt.Sprintf("msm-free-%s-%s.tar.gz", goos, goarch)
+	return fmt.Sprintf("msf-%s-%s.tar.gz", goos, goarch)
 }
 
 func removeSystemdService(serviceName string) error {
@@ -678,7 +670,7 @@ func removeSystemdService(serviceName string) error {
 		return errors.New("service uninstall must be run as root")
 	}
 	if isUnraidRuntime() {
-		return errors.New("on Unraid, remove msm-free from the WebGUI plugin page instead of systemd service uninstall")
+		return errors.New("on Unraid, remove msf from the WebGUI plugin page instead of systemd service uninstall")
 	}
 	servicePath := filepath.Join("/etc/systemd/system", serviceName+".service")
 	_ = runQuiet("systemctl", "stop", serviceName)
@@ -702,16 +694,15 @@ func licenseCommand(action string) error {
 		fmt.Println(hex.EncodeToString(sum[:]))
 		return nil
 	case "activate", "deactivate", "bind", "unbind", "info":
-		fmt.Println("license: free/unlocked; commercial license commands are not required in msm-free")
+		fmt.Println("license: free/unlocked; commercial license commands are not required in msf")
 		return nil
 	default:
-		return errors.New("usage: msm license status|fingerprint")
+		return errors.New("usage: msf license status|fingerprint")
 	}
 }
 
 func removeRuntimePIDFiles(dataDir string) {
-	_ = os.Remove(filepath.Join(dataDir, "msm.pid"))
-	_ = os.Remove(filepath.Join(dataDir, "msm-free.pid"))
+	_ = os.Remove(filepath.Join(dataDir, "msf.pid"))
 }
 
 func removeAliasIfOwned(aliasPath, binPath string) {
@@ -773,8 +764,8 @@ func commandOutput(name string, args ...string) string {
 
 func normalizeCLIService(service string) string {
 	switch strings.ToLower(strings.TrimSpace(service)) {
-	case "", "app", "msm-free", "web", "server":
-		return "msm"
+	case "", "app", "msf", "web", "server":
+		return "msf"
 	case "proxy", "clash":
 		return "mihomo"
 	default:
@@ -799,9 +790,9 @@ func cliLogPaths(dataDir, service string) []string {
 		}
 	default:
 		return []string{
-			filepath.Join(dataDir, "logs", "msm.log"),
-			filepath.Join(dataDir, "logs", "msm-free.unraid.log"),
-			filepath.Join(dataDir, "logs", "msm-free.cli.log"),
+			filepath.Join(dataDir, "logs", "msf.log"),
+			filepath.Join(dataDir, "logs", "msf.unraid.log"),
+			filepath.Join(dataDir, "logs", "msf.cli.log"),
 		}
 	}
 }
@@ -927,10 +918,10 @@ func runVisible(name string, args ...string) error {
 }
 
 func defaultGitHubRepo() string {
-	if v := strings.TrimSpace(os.Getenv("MSM_FREE_GITHUB_REPO")); v != "" {
+	if v := strings.TrimSpace(os.Getenv("MSF_GITHUB_REPO")); v != "" {
 		return v
 	}
-	return "scoltzero/msm-free"
+	return "scoltzero/msf"
 }
 
 func isUnraidRuntime() bool {

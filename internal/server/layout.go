@@ -8,13 +8,18 @@ import (
 
 func databasePath(dataDir string) string {
 	dbDir := filepath.Join(dataDir, "database")
-	legacy := filepath.Join(dbDir, "msm-free.db")
-	preferred := filepath.Join(dbDir, "msm.db")
+	preferred := filepath.Join(dbDir, "msf.db")
 	if _, err := os.Stat(preferred); err == nil {
 		return preferred
 	}
-	if _, err := os.Stat(legacy); err == nil {
-		return legacy
+	// Pre-rename installs (our old msm-free.db, or the upstream-MSM-compatible
+	// msm.db): open the existing database in place. File-level migration to the
+	// msf.db name is performed by the Phase 3 installer before the server starts.
+	for _, legacyName := range []string{"msm.db", "msm-free.db"} {
+		legacy := filepath.Join(dbDir, legacyName)
+		if _, err := os.Stat(legacy); err == nil {
+			return legacy
+		}
 	}
 	return preferred
 }
@@ -28,7 +33,7 @@ func (a *App) ensureCompatibilityLayout() error {
 		"configs/supervisor/services/mihomo.ini": a.renderSupervisorService("mihomo"),
 		"configs/supervisor/services/mosdns.ini": a.renderSupervisorService("mosdns"),
 		"logs/supervisor/supervisord.log":        "",
-		"logs/msm.log":                           "",
+		"logs/msf.log":                           "",
 		"configs/logs/mosdns.log":                "",
 		"configs/mosdns/cache/.keep":             "",
 		"configs/mosdns/unpack/.keep":            "",
@@ -70,24 +75,11 @@ func (a *App) ensureCompatibilityLayout() error {
 }
 
 func (a *App) ensureCompatibilityDatabaseLink() error {
-	dbDir := filepath.Join(a.DataDir, "database")
-	preferred := filepath.Join(dbDir, "msm.db")
-	legacy := filepath.Join(dbDir, "msm-free.db")
-	if _, err := os.Stat(preferred); err == nil {
-		return nil
-	}
-	if _, err := os.Stat(legacy); err != nil {
-		return nil
-	}
-	relTarget := "msm-free.db"
-	if err := os.Symlink(relTarget, preferred); err == nil || os.IsExist(err) {
-		return nil
-	}
-	b, err := os.ReadFile(legacy)
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(preferred, b, 0644)
+	// Historically this linked msm.db <-> msm-free.db for drop-in upstream-MSM
+	// compatibility. After the msf rename there is a single canonical database
+	// name (msf.db); a pre-rename database is opened in place by databasePath and
+	// migrated to msf.db by the Phase 3 installer before the server starts.
+	return nil
 }
 
 func (a *App) renderSupervisorConf() string {

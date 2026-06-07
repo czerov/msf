@@ -394,7 +394,7 @@ func patchZashboardIndex(uiDir string) error {
 		return err
 	}
 	html := string(body)
-	if strings.Contains(html, "msm-free-zashboard-disk-backend") {
+	if strings.Contains(html, "msf-zashboard-disk-backend") {
 		return nil
 	}
 	if strings.Contains(html, "</head>") {
@@ -405,7 +405,7 @@ func patchZashboardIndex(uiDir string) error {
 	return os.WriteFile(indexPath, []byte(html), 0644)
 }
 
-const zashboardDiskAutoBackendScript = `<script id="msm-free-zashboard-disk-backend">
+const zashboardDiskAutoBackendScript = `<script id="msf-zashboard-disk-backend">
 ;(function () {
   try {
     if (!window.localStorage) return
@@ -422,14 +422,14 @@ const zashboardDiskAutoBackendScript = `<script id="msm-free-zashboard-disk-back
         list = []
       }
     }
-    var id = "msm-free-" + host.replace(/[^a-zA-Z0-9]/g, "-") + "-9090"
+    var id = "msf-" + host.replace(/[^a-zA-Z0-9]/g, "-") + "-9090"
     var entry = {
       protocol: "http",
       secondaryPath: "",
       host: host,
       port: "9090",
       password: "",
-      label: "msm-free",
+      label: "msf",
       disableUpgradeCore: true,
       disableTunMode: false,
       uuid: id
@@ -443,7 +443,7 @@ const zashboardDiskAutoBackendScript = `<script id="msm-free-zashboard-disk-back
     localStorage.setItem(listKey, JSON.stringify(list))
     localStorage.setItem(activeKey, id)
   } catch (err) {
-    console.warn("msm-free zashboard disk backend preset failed", err)
+    console.warn("msf zashboard disk backend preset failed", err)
   }
 })()
 </script>

@@ -1,5 +1,77 @@
 # 更新日志
 
+## v0.3.1 - 2026-06-11
+
+### 中文
+
+#### 说明
+
+- 这是一次以 Unraid CA 合规为主的修复发布，同时补齐 v0.3.0 之后已经进入 `main` 的 Docker、文档、发布流程和运行时修复。
+- 本版本发布资产包含 Linux amd64/arm64 tarball、Unraid `.txz`/`.plg`，以及从同步后的 `fnos-fpk` 分支构建的 fnOS x86/arm `.fpk` 包。
+
+#### 新增
+
+- 新增在线组件下载完整性校验：MosDNS、Mihomo、Zashboard 在线安装会读取 GitHub Release API asset `digest`，只接受合法 `sha256:<hex>`，下载后哈希匹配才会解压或覆盖现有核心。
+- 新增组件校验状态字段：组件更新状态会返回并持久化 `download_digest`、`verified_digest`、`verified` 和 `verification_source`。
+- 新增本地上传来源标记：手动上传核心仍保留 ELF/架构校验，但会显示为 `local-upload` 且 `verified=false`，不声明由项目验证。
+- 新增 `make audit-compliance` 和 `scripts/audit-compliance.sh`，扫描源码与构建产物中的旧真实订阅、真实节点、真实 IP 和非 inert 代理 URL 样例。
+- 新增 Docker host-network 部署支持，包含 `Dockerfile`、`docker-compose.yml`、`docker-run.sh`、GHCR workflow 与 Docker 部署文档。
+- 新增 Docker runtime 检测与保护：容器内禁用主机级 `msf update`、`msf uninstall` 和 systemd service install/uninstall。
+- 新增路由器集成文档，覆盖 OpenWrt、RouterOS、iKuai、UniFi 的中英文 DHCP / 静态路由配置说明。
+- 新增手动发布 runbook，并在 README 中补充服务端口占用表。
+
+#### 变更
+
+- 清空默认初始化配置中的真实订阅链接、真实分享节点和 YAML 节点；输入占位与 MosDNS 规则演示数据统一改为 `example.invalid`、`198.51.100.0/24`、`203.0.113.0/24` 等 inert 示例。
+- Unraid Settings 入口保留为独立轻量插件控制页，只提供启停、监听地址、端口、数据目录、状态和 `Open WebUI`；完整管理界面运行在独立 MSF WebUI。
+- 更新 Unraid CA 模板、`ca_profile.xml`、README 和 `.plg` release notes，明确核心下载校验、本地上传语义和 Settings 控制页边界。
+- 将项目描述统一调整为 free and open-source DNS & proxy management tool。
+- 移除 GitHub Actions release workflow，发布改为手动 runbook 流程。
+- 从版本库移除 `.codex`、graphify 等本地工具产物，并通过 `.gitignore` 阻止再次纳入。
+
+#### 修复
+
+- 修复 MosDNS 缓存统计读取与展示逻辑。
+- 修复 nftables / policy routing 应用逻辑：应用前清理旧 `table inet msf` 与重复 fwmark rule，路由使用 `replace`，清理时同时处理 IPv4/IPv6 policy route。
+- 修复 daemon stop/restart 与进程退出路径，统一走 `ShutdownRuntime` 清理运行时状态。
+- 修复 Unraid CA submission scanner 对模板/profile XML 的识别问题。
+- 修复 `component_update_info` 旧数据库缺少新增校验列时的迁移兼容。
+
+### English
+
+#### Notes
+
+- This is primarily an Unraid CA compliance release, while also documenting the Docker, runtime, release-process, and documentation changes that landed after v0.3.0.
+- Release assets include Linux amd64/arm64 tarballs, Unraid `.txz`/`.plg`, and fnOS x86/arm `.fpk` packages built from the synced `fnos-fpk` branch.
+
+#### Added
+
+- Added integrity verification for online component downloads: MosDNS, Mihomo, and Zashboard installs now read the GitHub Release API asset `digest`, require a valid `sha256:<hex>` value, and install only after the downloaded file hash matches.
+- Added component verification state fields: `download_digest`, `verified_digest`, `verified`, and `verification_source` are persisted and returned by the component update APIs.
+- Added explicit local-upload provenance: manually uploaded cores still go through ELF/architecture checks, but are shown as `local-upload` with `verified=false` instead of being presented as project-verified downloads.
+- Added `make audit-compliance` and `scripts/audit-compliance.sh` to scan source and generated artifacts for old live subscriptions, live nodes, live IPs, and non-inert proxy URL samples.
+- Added Docker host-network deployment support with `Dockerfile`, `docker-compose.yml`, `docker-run.sh`, a GHCR workflow, and Docker deployment documentation.
+- Added Docker runtime detection and safeguards: host-level `msf update`, `msf uninstall`, and systemd service install/uninstall commands are disabled inside containers.
+- Added bilingual router integration guides for OpenWrt, RouterOS, iKuai, and UniFi DHCP/static-route setup.
+- Added a manual release runbook and documented service port allocation in the README.
+
+#### Changed
+
+- Removed live subscription URLs, live share nodes, and YAML node samples from the default initialization config; UI placeholders and MosDNS rule demo data now use inert examples such as `example.invalid`, `198.51.100.0/24`, and `203.0.113.0/24`.
+- Kept the Unraid Settings entry as a separate lightweight plugin control page for service enablement, listen address, port, data directory, status, and `Open WebUI`; the full management interface runs in the standalone MSF WebUI.
+- Updated the Unraid CA template, `ca_profile.xml`, README text, and `.plg` release notes to describe core hash verification, local-upload semantics, and the Settings page boundary.
+- Standardized the project description as a free and open-source DNS & proxy management tool.
+- Removed the GitHub Actions release workflow; releases now follow the manual runbook.
+- Removed local tooling artifacts such as `.codex` and graphify output from version control and ignored them going forward.
+
+#### Fixed
+
+- Fixed MosDNS cache statistics parsing and display.
+- Fixed nftables / policy routing application: old `table inet msf` and duplicate fwmark rules are cleared before apply, routes use `replace`, and cleanup now covers both IPv4 and IPv6 policy routes.
+- Fixed daemon stop/restart and shutdown paths to use `ShutdownRuntime` for runtime cleanup.
+- Fixed Unraid CA submission scanner detection for the template/profile XML files.
+- Fixed database migration compatibility for existing `component_update_info` tables that lack the new verification columns.
+
 ## v0.3.0 - 2026-06-08
 
 ### 说明

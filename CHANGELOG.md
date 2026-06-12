@@ -1,5 +1,43 @@
 # 更新日志
 
+## v0.3.2 - 2026-06-12
+
+### 中文
+
+#### 说明
+
+- 这是一次小型修复发布，基于 v0.3.1 的 CA 合规版本继续修正组件校验状态展示和初始化向导体验。
+- 本版本发布资产继续包含 Linux amd64/arm64 tarball、Unraid `.txz`/`.plg`，以及从同步后的 `fnos-fpk` 分支构建的 fnOS x86/arm `.fpk` 包。
+
+#### 修复
+
+- 修复 MosDNS、Mihomo、Zashboard 在线安装校验成功后，后续更新检查可能把同一 digest 的已验证状态重置为“待安装校验”的问题。
+- 修复组件更新状态在无新版本且 digest 未变化时的 `verified_digest`、`verified` 和 `verification_source` 保留逻辑。
+
+#### 变更
+
+- 改进初始化向导校验流程：提交时弹出需要修改的步骤提示，用户点击后再跳转到对应步骤。
+- 初始化管理员密码只要求非空和两次输入一致，不再强制最少 8 位。
+- 初始化密码输入框增加显示/隐藏切换。
+
+### English
+
+#### Notes
+
+- This is a small fix release on top of the v0.3.1 CA compliance release, focused on component verification state display and setup wizard usability.
+- Release assets continue to include Linux amd64/arm64 tarballs, Unraid `.txz`/`.plg`, and fnOS x86/arm `.fpk` packages built from the synced `fnos-fpk` branch.
+
+#### Fixed
+
+- Fixed MosDNS, Mihomo, and Zashboard status checks resetting a successfully installed and verified same-digest component back to a pending verification state.
+- Fixed preservation of `verified_digest`, `verified`, and `verification_source` when no update is available and the GitHub asset digest is unchanged.
+
+#### Changed
+
+- Improved setup wizard validation: invalid submissions now show a modal with the step that needs attention, then jump there when confirmed.
+- Setup administrator passwords now only require a non-empty value and matching confirmation; the previous minimum length requirement is no longer enforced.
+- Added show/hide controls for setup password fields.
+
 ## v0.3.1 - 2026-06-11
 
 ### 中文

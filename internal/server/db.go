@@ -77,6 +77,7 @@ func (a *App) migrate() error {
 			updated_at datetime,
 			username text not null,
 			email text,
+			timezone text default 'Asia/Shanghai',
 			web_port text default '7777',
 			amd64v3_enabled numeric default false,
 			selected_interface text,
@@ -206,6 +207,9 @@ func (a *App) migrate() error {
 	if err := a.ensureComponentUpdateInfoComplianceColumns(); err != nil {
 		return err
 	}
+	if err := a.ensureSystemSetupsTimezoneColumn(); err != nil {
+		return err
+	}
 	if err := a.migrateLegacyRows(); err != nil {
 		return err
 	}
@@ -237,6 +241,12 @@ func (a *App) ensureComponentUpdateInfoComplianceColumns() error {
 		"installed_verified_digest":     "text",
 		"installed_verification_source": "text",
 		"installed_verified_at":         "datetime",
+	})
+}
+
+func (a *App) ensureSystemSetupsTimezoneColumn() error {
+	return a.ensureTableColumns("system_setups", map[string]string{
+		"timezone": "text default 'Asia/Shanghai'",
 	})
 }
 

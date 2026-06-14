@@ -186,6 +186,7 @@ func (a *App) publicAPI(path string) bool {
 		"/api/v1/setup/system-info",
 		"/api/v1/setup/network-interfaces",
 		"/api/v1/setup/privilege",
+		"/api/v1/setup/preflight",
 		"/api/v1/setup/initialize",
 		"/api/v1/setup/activate",
 		"/api/v1/auth/login",
@@ -211,6 +212,7 @@ func (a *App) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/setup/system-info", a.handleSetupSystemInfo)
 	mux.HandleFunc("GET /api/v1/setup/network-interfaces", a.handleSetupNetworkInterfaces)
 	mux.HandleFunc("GET /api/v1/setup/privilege", a.handleSetupPrivilege)
+	mux.HandleFunc("GET /api/v1/setup/preflight", a.handleSetupPreflight)
 	mux.HandleFunc("GET /api/v1/setup/config", a.handleSetupGetConfig)
 	mux.HandleFunc("PUT /api/v1/setup/config", a.handleSetupPutConfig)
 	mux.HandleFunc("POST /api/v1/setup/initialize", a.handleSetupInitialize)

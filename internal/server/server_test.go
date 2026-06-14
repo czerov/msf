@@ -2308,6 +2308,7 @@ func newSlowTrafficMihomoController(t *testing.T) *httptest.Server {
 
 func newTestApp(t *testing.T) *App {
 	t.Helper()
+	withTestSetupSystemOps(t)
 	app, err := New(Options{DataDir: t.TempDir(), Version: "test"})
 	if err != nil {
 		t.Fatal(err)

@@ -850,6 +850,15 @@ func TestComponentUpdateStateExposesVerificationFields(t *testing.T) {
 	if state["verification_source"] != componentVerificationSourceGitHubAssetDigest {
 		t.Fatalf("verification_source mismatch: %#v", state)
 	}
+	if state["installed_verified_digest"] != verifiedDigest {
+		t.Fatalf("installed_verified_digest should be backfilled from verified digest: %#v", state)
+	}
+	if state["installed_verification_source"] != componentVerificationSourceGitHubAssetDigest {
+		t.Fatalf("installed_verification_source should be backfilled: %#v", state)
+	}
+	if got, ok := state["installed_verified_at"].(time.Time); !ok || got.IsZero() {
+		t.Fatalf("installed_verified_at should be backfilled from last_check_time: %#v", state)
+	}
 }
 
 func TestPreservedComponentVerification(t *testing.T) {

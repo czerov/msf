@@ -174,6 +174,9 @@ func (a *App) migrate() error {
 			verified_digest text,
 			verified numeric default false,
 			verification_source text,
+			installed_verified_digest text,
+			installed_verification_source text,
+			installed_verified_at datetime,
 			release_body text,
 			status text default 'idle',
 			progress integer default 0,
@@ -227,10 +230,13 @@ func (a *App) ensureAPITokenScopeColumn() error {
 
 func (a *App) ensureComponentUpdateInfoComplianceColumns() error {
 	return a.ensureTableColumns("component_update_info", map[string]string{
-		"download_digest":     "text",
-		"verified_digest":     "text",
-		"verified":            "numeric default false",
-		"verification_source": "text",
+		"download_digest":               "text",
+		"verified_digest":               "text",
+		"verified":                      "numeric default false",
+		"verification_source":           "text",
+		"installed_verified_digest":     "text",
+		"installed_verification_source": "text",
+		"installed_verified_at":         "datetime",
 	})
 }
 

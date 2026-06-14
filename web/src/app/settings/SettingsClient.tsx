@@ -107,6 +107,9 @@ interface ComponentUpdateState {
   verified_digest?: string;
   verified?: boolean;
   verification_source?: string;
+  installed_verified_digest?: string;
+  installed_verification_source?: string;
+  installed_verified_at?: string;
   last_check_time?: string;
 }
 
@@ -158,6 +161,20 @@ const RELEASE_REPO_OWNER = "scoltzero";
 const RELEASE_REPO_NAME = "msf";
 const RELEASE_REPO = `${RELEASE_REPO_OWNER}/${RELEASE_REPO_NAME}`;
 const RELEASE_REPO_URL = `https://github.com/${RELEASE_REPO}`;
+const COMPONENT_RELEASE_LINKS: Record<string, { label: string; url: string }> = {
+  mosdns: {
+    label: "baozaodetudou/mssb/releases/tag/mosdns",
+    url: "https://github.com/baozaodetudou/mssb/releases/tag/mosdns",
+  },
+  mihomo: {
+    label: "MetaCubeX/mihomo/releases",
+    url: "https://github.com/MetaCubeX/mihomo/releases",
+  },
+  zashboard: {
+    label: "Zephyruso/zashboard/releases/latest",
+    url: "https://github.com/Zephyruso/zashboard/releases/latest",
+  },
+};
 
 function toDate(value?: string) {
   if (!value) return null;
@@ -245,9 +262,9 @@ function shortDigest(value?: string) {
 }
 
 function componentVerificationLabel(item?: ComponentUpdateState) {
+  if (item?.installed_verified_at) return `上次核心校验: ${formatDateTime(item.installed_verified_at)}`;
+  if (item?.installed_verification_source === "local-upload" || item?.verification_source === "local-upload") return "本地上传，未项目校验";
   if (item?.verified) return `已校验 ${shortDigest(item.verified_digest || item.download_digest)}`;
-  if (item?.verification_source === "local-upload") return "本地上传，未项目校验";
-  if (item?.download_digest) return `待安装校验 ${shortDigest(item.download_digest)}`;
   return "未校验";
 }
 
@@ -1262,8 +1279,11 @@ function ComponentUpdateCard({
   const isBusy = busy === component;
   const progress = typeof item?.progress === "number" ? item.progress : 0;
   const effectiveConfig = config || { component, auto_check: true, check_interval: 43200, auto_update: false };
-  const VerificationIcon = item?.verified ? Check : ShieldAlert;
-  const verificationTone = item?.verified ? "text-green-600" : item?.verification_source === "local-upload" ? "text-amber-600" : "text-muted-foreground";
+  const installedVerified = Boolean(item?.installed_verified_at || item?.verified);
+  const localUploaded = item?.installed_verification_source === "local-upload" || item?.verification_source === "local-upload";
+  const VerificationIcon = installedVerified ? Check : ShieldAlert;
+  const verificationTone = installedVerified ? "text-green-600" : localUploaded ? "text-amber-600" : "text-muted-foreground";
+  const releaseLink = COMPONENT_RELEASE_LINKS[component];
 
   return (
     <div className="rounded-xl border border-border/50 p-4">
@@ -1281,9 +1301,20 @@ function ComponentUpdateCard({
             <VerificationIcon className="h-3.5 w-3.5" />
             <span>{componentVerificationLabel(item)}</span>
           </div>
+          {releaseLink ? (
+            <a
+              href={releaseLink.url}
+              target="_blank"
+              rel="noreferrer"
+              title={releaseLink.url}
+              className="mt-1 block max-w-full truncate text-xs text-primary hover:underline"
+            >
+              发布页: {releaseLink.label}
+            </a>
+          ) : null}
           {item?.error_message ? <div className="mt-1 text-xs text-destructive">{item.error_message}</div> : null}
         </div>
-        <div className="flex shrink-0 items-center gap-2 sm:pt-0.5">
+        <div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end sm:pt-0.5">
           <input
             ref={fileRef}
             type="file"
@@ -1620,6 +1651,19 @@ function UpdateTab({ showToast }: { showToast: (message: string) => void }) {
     setComponentUpdates(apiList<ComponentUpdateState>(payload, ["data", "items", "components"]));
   };
 
+  const refreshComponentAfterUpdate = async (component: string) => {
+    try {
+      const payload = await api<any>(`/api/v1/component-updates/${component}/check`, { method: "POST" });
+      if (payload.success === false) {
+        showToast(`${component} 状态刷新失败: ${payload.error || "未知错误"}`);
+      }
+    } catch (err) {
+      showToast(`${component} 状态刷新失败: ${errorMessage(err)}`);
+    } finally {
+      await reloadComponents();
+    }
+  };
+
   const checkComponent = async (component: string) => {
     setComponentBusy(component);
     try {
@@ -1639,10 +1683,11 @@ function UpdateTab({ showToast }: { showToast: (message: string) => void }) {
           return;
         }
         showToast(`${component} 检测到更新，已自动执行更新任务`);
+        await refreshComponentAfterUpdate(component);
       } else {
         showToast(`${component} 已检查更新`);
+        await reloadComponents();
       }
-      await reloadComponents();
     } catch (err) {
       showToast(`${component} 检查更新失败: ${errorMessage(err)}`);
     } finally {
@@ -1659,8 +1704,8 @@ function UpdateTab({ showToast }: { showToast: (message: string) => void }) {
         await reloadComponents();
         return;
       }
-      showToast(`${component} 更新任务已执行`);
-      await reloadComponents();
+      showToast(`${component} 更新任务已执行，正在刷新状态`);
+      await refreshComponentAfterUpdate(component);
     } catch (err) {
       showToast(`${component} 更新失败: ${errorMessage(err)}`);
     } finally {

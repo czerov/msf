@@ -20,6 +20,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/scoltzero/msf/internal/cloudflareredirect"
 	_ "modernc.org/sqlite"
 )
 
@@ -127,6 +128,9 @@ func (a *App) EnsureBaseLayout() error {
 		}
 	}
 	if err := a.ensureDefaultConfigs(); err != nil {
+		return err
+	}
+	if err := cloudflareredirect.EnsureDefaultConfig(a.DataDir); err != nil {
 		return err
 	}
 	return a.ensureCompatibilityLayout()

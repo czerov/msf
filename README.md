@@ -1,5 +1,9 @@
 # msf
 
+<p align="center">
+  <img src="logo_motion/msm_logo_motion.gif" alt="MSF 动态 Logo" width="320">
+</p>
+
 [English README](README.en.md)
 
 `msf` 是一个面向 MosDNS + Mihomo 工作流的 MSM 风格管理面板重构版。项目目标是提供可自部署、可审计的 DNS 分流、透明代理、Mihomo 管理和多平台安装体验。

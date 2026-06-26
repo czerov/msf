@@ -87,7 +87,9 @@ go run ./cmd/msf serve -c ./data -p 7777
 
 感谢这些项目提供参考：
 
-- `msm9527/msm-wiki`：作为 MSM 管理体验和功能组织的公开参考。
-- `baozaodetudou/mssb`：作为 MosDNS + Mihomo 后端工作流的公开参考。
+- [`msm9527/msm-wiki`](https://github.com/msm9527/msm-wiki)：作为 MSM 管理体验和功能组织的公开参考。
+- [`baozaodetudou/mssb`](https://github.com/baozaodetudou/mssb)：作为 MosDNS + Mihomo 后端工作流的公开参考。
 
 本项目与 MSM、mssb 上游项目没有隶属关系。
+
+[![认可linux.do](https://ld.xh.do/ld-badge.svg)](https://linux.do/)

@@ -85,7 +85,9 @@ This project does not contain MSM closed-source backend code. It is a non-commer
 
 Thanks to:
 
-- `msm9527/msm-wiki`, used as the public reference for the MSM management experience.
-- `baozaodetudou/mssb`, used as the public reference for the MosDNS + Mihomo backend behavior.
+- [`msm9527/msm-wiki`](https://github.com/msm9527/msm-wiki), used as the public reference for the MSM management experience.
+- [`baozaodetudou/mssb`](https://github.com/baozaodetudou/mssb), used as the public reference for the MosDNS + Mihomo backend behavior.
 
 This project is not affiliated with the upstream MSM or mssb projects.
+
+[![Approved by linux.do](https://ld.xh.do/ld-badge.svg)](https://linux.do/)
